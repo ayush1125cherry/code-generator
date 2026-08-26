@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database with pgvector support
+  postgres:
+    image: pgvector/pgvector:0.8.1-pg18-trixie
+    container_name: lovable-postgres
+    environment:
+      POSTGRES_DB: pgvector-test
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "9010:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # 2. MinIO Object Storage (S3 compatible)
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: lovable-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9002:9000"    # API
+      - "9003:9001"    # Web Console UI
+    volumes:
+      - miniodata:/data
+    restart: unless-stopped
+
+  # 3. Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: lovable-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  # 4. Spring Boot Backend
+  backend:
+    build:
+      context: ./lovable-clone
+      dockerfile: Dockerfile
+    container_name: lovable-backend
+    environment:
+      PORT: 8080
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pgvector-test
+      DATABASE_USERNAME: user
+      DATABASE_PASSWORD: password
+      MINIO_URL: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      AI_API_KEY: AIzaSyCmCeQMJRBDEnlvVLVMhJ783-5c1rr-hnU
+      JWT_SECRET_KEY: jakljnfmsdanmonmsannagsmnkmewnansdlknaskjk
+      CLIENT_URL: http://localhost:3000
+      STRIPE_API_SECRET: sk_test_placeholder
+      STRIPE_WEBHOOK_SECRET: whsec_placeholder
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - minio
+      - redis
+    restart: unless-stopped
+
+  # 5. React Frontend (served via Nginx)
+  frontend:
+    build:
+      context: ./Frontend/project-companion
+      dockerfile: Dockerfile
+    container_name: lovable-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  miniodata:

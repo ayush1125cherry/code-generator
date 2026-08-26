@@ -1,0 +1,43 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: lovable-clone
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:9010/code_generator}
+    username: ${DATABASE_USERNAME:user}
+    password: ${DATABASE_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  ai:
+    openai:
+      api-key: ${AI_API_KEY:AIzaSyCmCeQMJRBDEnlvVLVMhJ783-5c1rr-hnU}
+      base-url: https://generativelanguage.googleapis.com/v1beta/openai
+      chat:
+        options:
+          model: gemini-1.5-flash
+          temperature: 0.0
+
+jwt:
+  secret-key: ${JWT_SECRET_KEY:jakljnfmsdanmonmsannagsmnkmewnansdlknaskjk}
+
+client:
+  url: ${CLIENT_URL:http://localhost:8080}
+
+stripe:
+  api:
+    secret: ${STRIPE_API_SECRET:sk_test_placeholder_key}
+  webhook:
+    secret: ${STRIPE_WEBHOOK_SECRET:whsec_placeholder_key}
+
+minio:
+  url: ${MINIO_URL:http://localhost:9002}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin123}
+  project-bucket: ${MINIO_BUCKET:projects}
