@@ -1,30 +1,38 @@
-# Environment & Secret Files (Never push to Git!)
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build Outputs
+dist/
+build/
+target/
+*.jar
+*.war
+
+# Environment Variables
 .env
-.env.*
-*.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Java / Maven build output
-**/target/
-**/.mvn/
-*.class
-
-# Node / Frontend build output
-**/node_modules/
-**/dist/
-**/dist-ssr/
-*.local
-
-# IDE & Editor files
+# IDEs and Editors
 .idea/
 *.iml
-*.iws
-*.ipr
 .vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 .DS_Store
+Thumbs.db
 
-# Log files
-*.log
-logs/
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log

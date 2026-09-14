@@ -17,11 +17,12 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
   ai:
     openai:
-      api-key: ${AI_API_KEY:AIzaSyCmCeQMJRBDEnlvVLVMhJ783-5c1rr-hnU}
-      base-url: https://generativelanguage.googleapis.com/v1beta/openai
+      api-key: ${AI_API_KEY:your_groq_api_key_here}
+      base-url: https://api.groq.com/openai
       chat:
+        completions-path: /v1/chat/completions
         options:
-          model: gemini-1.5-flash
+          model: openai/gpt-oss-120b
           temperature: 0.0
 
 jwt:

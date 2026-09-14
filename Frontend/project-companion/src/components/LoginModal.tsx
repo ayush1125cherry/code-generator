@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Loader2, Lock, Mail, Sparkles } from "lucide-react";
+import { Loader2, Lock, Mail } from "lucide-react";
 import { api, setAuthToken, setUserInfo } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,10 +62,10 @@ export function LoginModal() {
         <div className="bg-card border border-border/50 rounded-2xl p-8 shadow-2xl">
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-primary/20 mb-5">
-              <Sparkles className="w-7 h-7 text-primary" />
+            <div className="inline-flex items-center justify-center w-16 h-16 mb-4">
+              <img src="/logo.png" alt="Devify Logo" className="w-16 h-16 object-contain drop-shadow-lg" />
             </div>
-            <h1 className="text-2xl font-semibold text-foreground mb-2">Welcome to Lovable</h1>
+            <h1 className="text-2xl font-semibold text-foreground mb-2">Welcome to Devify</h1>
             <p className="text-muted-foreground text-sm">Sign in to continue building</p>
           </div>
 

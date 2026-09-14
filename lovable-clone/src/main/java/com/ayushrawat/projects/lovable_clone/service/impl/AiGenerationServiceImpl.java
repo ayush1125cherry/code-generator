@@ -87,36 +87,47 @@ public class AiGenerationServiceImpl implements AIGenerationService {
                 .stream()
                 .chatResponse()
                 .doOnNext(response -> {
-                    String content = response.getResult().getOutput().getText();
-                    if(content != null && !content.isEmpty() && endTime.get() == 0) { // first non-empty chunk received
-                        endTime.set(System.currentTimeMillis());
+                    if (response != null) {
+                        String content = null;
+                        if (response.getResult() != null && response.getResult().getOutput() != null) {
+                            content = response.getResult().getOutput().getText();
+                        }
+                        if (content != null && !content.isEmpty()) {
+                            if (endTime.get() == 0) {
+                                endTime.set(System.currentTimeMillis());
+                            }
+                            fullResponseBuffer.append(content);
+                        }
+                        if (response.getMetadata() != null && response.getMetadata().getUsage() != null) {
+                            usageRef.set(response.getMetadata().getUsage());
+                        }
                     }
-                    if(response.getMetadata().getUsage() != null) {
-                        usageRef.set(response.getMetadata().getUsage());
-                    }
-
-                    fullResponseBuffer.append(content);
                 })
-
-
                 .doOnComplete(()->{
                     Schedulers.boundedElastic().schedule(()->{
-//                        parseAndSaveFiles(fullResponseBuffer.toString(), projectId);
-                        long duration = (endTime.get() - startTime.get()) /  1000;
+                        long finishedAt = endTime.get() > 0 ? endTime.get() : System.currentTimeMillis();
+                        long duration = Math.max(1, (finishedAt - startTime.get()) / 1000);
 
                         finalizeChats(userMessage,chatSession,fullResponseBuffer.toString(),duration,usageRef.get(),userId);
                     });
 
                 })
-                .doOnError(error -> log.error("Error during streaming for projectId: {}", projectId))
+                .doOnError(error -> log.error("Error during streaming for projectId: {}", projectId, error))
                 .map(response -> {
-                    String text = response.getResult().getOutput().getText();
+                    String text = null;
+                    if (response != null && response.getResult() != null && response.getResult().getOutput() != null) {
+                        text = response.getResult().getOutput().getText();
+                    }
                     return new StreamResponse(text != null ? text : "");
-                });
+                })
+                .filter(sr -> sr.text() != null && !sr.text().isEmpty());
     }
 
     private void finalizeChats(String userMessage, ChatSession chatSession, String fullText, Long duration,Usage usage,Long userId) {
         Long projectId = chatSession.getProject().getId();
+
+        int promptTokens = usage != null ? usage.getPromptTokens() : 0;
+        int completionTokens = usage != null ? usage.getCompletionTokens() : 0;
 
         if(usage != null) {
             int totalTokens = usage.getTotalTokens();
@@ -129,7 +140,7 @@ public class AiGenerationServiceImpl implements AIGenerationService {
                         .chatSession(chatSession)
                         .role(MessageRole.USER)
                         .content(userMessage)
-                        .tokensUsed(usage.getPromptTokens())
+                        .tokensUsed(promptTokens)
                         .build());
 
 
@@ -138,7 +149,7 @@ public class AiGenerationServiceImpl implements AIGenerationService {
                 .role(MessageRole.ASSISTANT)
                 .content(fullText)
                 .chatSession(chatSession)
-                .tokensUsed(usage.getCompletionTokens())
+                .tokensUsed(completionTokens)
                 .build();
 
         assistantChatMessage = chatMessageRepository.save(assistantChatMessage);
@@ -152,7 +163,7 @@ public class AiGenerationServiceImpl implements AIGenerationService {
                 .build());
 
         chatEventList.stream()
-                .filter(e -> e.getType() == ChatEventType.FILE_EDIT)
+                .filter(e -> e.getType() == ChatEventType.FILE_EDIT && e.getFilePath() != null && !e.getFilePath().isBlank() && e.getContent() != null)
                 .forEach(e -> projectFileService.saveFile(projectId, e.getFilePath(), e.getContent()));
 
         chatEventRepository.saveAll(chatEventList);

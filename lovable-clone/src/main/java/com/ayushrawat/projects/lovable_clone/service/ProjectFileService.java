@@ -17,4 +17,6 @@ public interface ProjectFileService {
 
 
     void saveFile(Long projectId, String filePath, String fileContent);
+
+    byte[] downloadProjectZip(Long projectId);
 }

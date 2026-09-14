@@ -5,6 +5,7 @@ import com.ayushrawat.projects.lovable_clone.dto.project.FileNode;
 import com.ayushrawat.projects.lovable_clone.dto.project.FileTreeResponse;
 import com.ayushrawat.projects.lovable_clone.service.ProjectFileService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,6 +31,14 @@ public class FileController {
     ) {
 
         return ResponseEntity.ok(projectFileService.getFileContent(projectId, path));
+    }
+
+    @GetMapping(value = "/download-zip", produces = "application/zip")
+    public ResponseEntity<byte[]> downloadProjectZip(@PathVariable Long projectId) {
+        byte[] zipBytes = projectFileService.downloadProjectZip(projectId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"project-" + projectId + ".zip\"")
+                .body(zipBytes);
     }
 
 }

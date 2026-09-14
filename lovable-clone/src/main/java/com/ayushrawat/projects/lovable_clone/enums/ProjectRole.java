@@ -9,10 +9,9 @@ import java.util.Set;
 @Getter
 public enum ProjectRole {
 
-    //One Way
-    EDITOR(EDIT),
-    VIEWER(Set.of(VIEW,VIEW_MEMBERS)),
-    OWNER(Set.of(EDIT,VIEW,DELETE,MANAGE_MEMBERS,VIEW_MEMBERS));
+    EDITOR(Set.of(VIEW, EDIT, VIEW_MEMBERS)),
+    VIEWER(Set.of(VIEW, VIEW_MEMBERS)),
+    OWNER(Set.of(EDIT, VIEW, DELETE, MANAGE_MEMBERS, VIEW_MEMBERS));
 
     //Another Way
     ProjectRole(ProjectPermission... permission) {

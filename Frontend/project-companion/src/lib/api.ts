@@ -395,13 +395,33 @@ export const api = {
               // 1. Send clean text to UI
               onChunk(content);
 
-              // 2. Accumulate for file parsing (Same as before)
+              // 2. Accumulate for file parsing
               fullContentBuffer += content;
-              // ... (rest of regex logic) ...
 
+              // Parse completed or streaming <file> tags
+              const fileRegex = /<file\s+path="([^"]+)">([\s\S]*?)(?:<\/file>|$)/gi;
+              let fileMatch: RegExpExecArray | null;
+              while ((fileMatch = fileRegex.exec(fullContentBuffer)) !== null) {
+                const filePath = fileMatch[1];
+                const fileBody = fileMatch[2];
+                if (filePath && fileBody) {
+                  onFile(filePath, fileBody);
+                }
+              }
             } catch (e) {
               console.error("Failed to parse SSE JSON:", e);
             }
+          }
+        }
+
+        // Final extraction on completion
+        const finalRegex = /<file\s+path="([^"]+)">([\s\S]*?)<\/file>/gi;
+        let finalMatch: RegExpExecArray | null;
+        while ((finalMatch = finalRegex.exec(fullContentBuffer)) !== null) {
+          const filePath = finalMatch[1];
+          const fileBody = finalMatch[2];
+          if (filePath && fileBody) {
+            onFile(filePath, fileBody);
           }
         }
 

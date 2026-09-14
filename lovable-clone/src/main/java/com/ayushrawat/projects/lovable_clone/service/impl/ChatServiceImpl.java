@@ -29,20 +29,14 @@ public class ChatServiceImpl implements ChatService {
     public List<ChatResponse> getProjectChatHistory(Long projectId) {
         Long userId = authUtils.getCurrentUserId();
 
-        ChatSession chatSession = chatSessionRepository.getReferenceById(
-                new ChatSessionId(projectId, userId)
-        );
-
-        List<ChatMessage> chatMessageList =
-                chatMessageRepository.findByChatSession(chatSession);
-
-        log.info("Messages found = {}", chatMessageList.size());
-
-        List<ChatResponse> responses =
-                chatMapper.fromListOfChatMessages(chatMessageList);
-
-        log.info("Mapped responses = {}", responses);
-
-        return responses;
+        return chatSessionRepository.findById(new ChatSessionId(projectId, userId))
+                .map(chatSession -> {
+                    List<ChatMessage> chatMessageList = chatMessageRepository.findByChatSession(chatSession);
+                    log.info("Messages found = {}", chatMessageList.size());
+                    List<ChatResponse> responses = chatMapper.fromListOfChatMessages(chatMessageList);
+                    log.info("Mapped responses = {}", responses);
+                    return responses;
+                })
+                .orElseGet(List::of);
     }
 }

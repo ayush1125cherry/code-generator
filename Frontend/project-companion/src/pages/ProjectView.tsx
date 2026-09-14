@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Code, Sparkles, LogOut, RotateCcw, Maximize2, RefreshCw, MoreVertical, Trash, Download, Edit } from "lucide-react";
+import { Code, Eye, RotateCcw, Maximize2, RefreshCw, MoreVertical, Trash, Download, Edit, ArrowLeft } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { ChatPanel, ChatMessage } from "@/components/ChatPanel";
 import { CodePanel } from "@/components/CodePanel";
@@ -32,6 +32,7 @@ export function ProjectView() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [runtimeError, setRuntimeError] = useState<RuntimeError | null>(null);
   const [project, setProject] = useState<ProjectResponse | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Rename state
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
@@ -54,25 +55,37 @@ export function ProjectView() {
     const loadData = async () => {
       setIsLoadingHistory(true);
       try {
-        const [history, projectData] = await Promise.all([
+        const [historyResult, projectResult] = await Promise.allSettled([
           api.getChatHistory(projectId),
           api.getProject(projectId)
         ]);
 
-        const formattedMessages: ChatMessage[] = history.map((msg) => ({
-          id: msg.id.toString(),
-          role: msg.role === "USER" ? "user" : "assistant",
-          content: msg.content,
-          createdAt: msg.createdAt,
-          events: msg.events,
-        }));
-        setMessages(formattedMessages);
-        setProject(projectData);
+        if (historyResult.status === "fulfilled" && Array.isArray(historyResult.value)) {
+          const formattedMessages: ChatMessage[] = historyResult.value.map((msg) => ({
+            id: msg.id.toString(),
+            role: msg.role === "USER" ? "user" : "assistant",
+            content: msg.content,
+            createdAt: msg.createdAt,
+            events: msg.events,
+          }));
+          setMessages(formattedMessages);
+        }
+
+        if (projectResult.status === "fulfilled") {
+          setProject(projectResult.value);
+        } else {
+          console.error("Failed to load project:", projectResult.reason);
+          toast({
+            title: "Error",
+            description: projectResult.reason instanceof Error ? projectResult.reason.message : "Failed to load project",
+            variant: "destructive"
+          });
+        }
       } catch (error) {
         console.error("Failed to load project data:", error);
         toast({
           title: "Error",
-          description: "Failed to load project data",
+          description: error instanceof Error ? error.message : "Failed to load project data",
           variant: "destructive"
         });
       } finally {
@@ -160,6 +173,10 @@ export function ProjectView() {
           )
         );
         setIsStreaming(false);
+        // Automatically reload preview iframe
+        setTimeout(() => {
+          setRefreshTrigger((prev) => prev + 1);
+        }, 800);
       },
       (error) => {
         // Handle error
@@ -208,16 +225,18 @@ export function ProjectView() {
   }, []);
 
   const handleFixError = useCallback((error: RuntimeError) => {
+    const cleanMessage = (error.message || '').replace(/\\u/gi, 'u');
+    const cleanStack = (error.stack || '').replace(/\\u/gi, 'u');
     const prompt = `I encountered a ${error.source || "runtime error"} in my application:
     
-Error Message: ${error.message}
+Error Message: ${cleanMessage}
 ${error.filename ? `File: ${error.filename}` : ''}
 ${error.lineno ? `Line: ${error.lineno}` : ''}
 
 Stack Trace:
-${error.stack || "No stack trace available"}
+${cleanStack || "No stack trace available"}
 
-Please analyze this error and fix the code to resolve it.`;
+Please fix the error in src/pages/Index.tsx and output the complete working code inside <file path="src/pages/Index.tsx">...</file>.`;
 
     handleSendMessage(prompt);
     setRuntimeError(null);
@@ -290,6 +309,17 @@ Please analyze this error and fix the code to resolve it.`;
       {/* Header */}
       <header className="h-12 shrink-0 border-b border-border/50 bg-panel flex items-center justify-between px-3">
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/projects")}
+            className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 mr-1"
+            title="Back to Projects"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline font-medium">Projects</span>
+          </Button>
+
           {project ? (
             <>
               <div
@@ -300,8 +330,8 @@ Please analyze this error and fix the code to resolve it.`;
             </>
           ) : (
             <>
-              <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center">
-                <Sparkles className="w-3.5 h-3.5 text-primary" />
+              <div className="w-7 h-7 flex items-center justify-center">
+                <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain" />
               </div>
               <span className="font-semibold text-sm">Loading...</span>
             </>
@@ -344,7 +374,7 @@ Please analyze this error and fix the code to resolve it.`;
                 : "text-muted-foreground hover:text-foreground"
                 }`}
             >
-              <Sparkles className="w-3 h-3" />
+              <Eye className="w-3 h-3" />
               Preview
             </button>
             <button
@@ -405,14 +435,6 @@ Please analyze this error and fix the code to resolve it.`;
               </Button>
             </>
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleLogout}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-          >
-            <LogOut className="w-4 h-4" />
-          </Button>
         </div>
       </header>
 
@@ -447,6 +469,7 @@ Please analyze this error and fix the code to resolve it.`;
                     runtimeError={runtimeError}
                     onDismiss={() => setRuntimeError(null)}
                     onFix={handleFixError}
+                    refreshTrigger={refreshTrigger}
                   />
                 </div>
               </div>

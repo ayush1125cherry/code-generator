@@ -61,8 +61,14 @@ export function ChatPanel({ messages, onSendMessage, isStreaming, isLoading, rea
     setInput(e.target.value);
     const textarea = e.target;
     textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
   };
+
+  const SUGGESTIONS = [
+    { title: "Digital Clock & Timer", prompt: "Create a modern digital clock with stopwatch, countdown timer, and alarm features with dark mode." },
+    { title: "Todo & Kanban Board", prompt: "Create a rich Todo application with drag-and-drop task columns, priorities, and category filters." },
+    { title: "Interactive Calculator", prompt: "Create a scientific calculator with history log, unit converter, and currency calculations." },
+    { title: "Analytics Dashboard", prompt: "Create a SaaS analytics dashboard with revenue charts, user metrics, and activity timeline." },
+  ];
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -73,20 +79,49 @@ export function ChatPanel({ messages, onSendMessage, isStreaming, isLoading, rea
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <div className="w-14 h-14 rounded-xl bg-primary/20 flex items-center justify-center mb-4">
-              <Bot className="w-7 h-7 text-primary" />
+          <div className="flex flex-col items-center justify-center h-full text-center p-6">
+            <div className="w-14 h-14 flex items-center justify-center mb-3">
+              <img src="/logo.png" alt="Devify Logo" className="w-12 h-12 object-contain drop-shadow" />
             </div>
-            <h3 className="text-base font-medium mb-1">Start a conversation</h3>
-            <p className="text-sm text-muted-foreground max-w-xs">
-              Describe what you want to build or modify
+            <h3 className="text-base font-semibold mb-1">What would you like to build?</h3>
+            <p className="text-xs text-muted-foreground max-w-xs mb-6">
+              Choose a template below or type your custom idea in the prompt bar.
             </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-md">
+              {SUGGESTIONS.map((item, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    if (!isStreaming && !readOnly) {
+                      onSendMessage(item.prompt);
+                    }
+                  }}
+                  disabled={isStreaming || readOnly}
+                  className="p-3 text-left rounded-xl bg-card border border-border/60 hover:border-primary/50 hover:bg-muted/30 transition-all text-xs group"
+                >
+                  <span className="font-semibold text-foreground group-hover:text-primary transition-colors block mb-1">
+                    {item.title}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                    {item.prompt}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="flex flex-col">
             {messages.map((message) => (
-              <MessageItem key={message.id} message={message}
-                isStreaming={isStreaming && message.isStreaming} />
+              <MessageItem 
+                key={message.id} 
+                message={message}
+                isStreaming={isStreaming && message.isStreaming} 
+                onRetry={() => {
+                  if (message.role === 'user') {
+                    onSendMessage(message.content);
+                  }
+                }}
+              />
             ))}
           </div>
         )}
@@ -101,7 +136,7 @@ export function ChatPanel({ messages, onSendMessage, isStreaming, isLoading, rea
             value={input}
             onChange={handleTextareaChange}
             onKeyDown={handleKeyDown}
-            placeholder={readOnly ? "You have view-only access to this project" : "Describe what you want to build..."}
+            placeholder={readOnly ? "You have view-only access to this project" : "Describe what you want to build (e.g. create a clock with timer)..."}
             className="min-h-[48px] max-h-[200px] pr-12 resize-none bg-muted/30 border-border/30 focus:border-primary/50 rounded-xl text-sm"
             disabled={isStreaming || readOnly}
             rows={1}
@@ -122,12 +157,12 @@ export function ChatPanel({ messages, onSendMessage, isStreaming, isLoading, rea
 
         <div className="flex items-center justify-between mt-2 px-1">
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <span>✨ AI-Powered Design System</span>
+            <span>Devify AI Engine</span>
           </div>
           {isStreaming && (
-            <span className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
+            <span className="text-xs text-primary flex items-center gap-1 font-medium">
               <Loader2 className="w-3 h-3 animate-spin text-primary" />
-              Thinking...
+              Generating application...
             </span>
           )}
         </div>
@@ -137,18 +172,24 @@ export function ChatPanel({ messages, onSendMessage, isStreaming, isLoading, rea
 }
 
 // Inner Component to handle logic per message
-function MessageItem({ message, isStreaming }: { message: ChatMessage, isStreaming: boolean }) {
+function MessageItem({ 
+  message, 
+  isStreaming,
+  onRetry 
+}: { 
+  message: ChatMessage; 
+  isStreaming?: boolean;
+  onRetry?: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
   // Use the stream parser to turn raw XML text into Event objects live
-  // 1. Parse content live if we are streaming OR if we don't have DB events yet
   const liveEvents = useStreamParser(message.content || "");
 
-  // 2. Logic: If we have DB events, use them. Otherwise, use the parsed content.
   const rawEvents = (message.events && message.events.length > 0)
     ? message.events
     : liveEvents;
 
-  // Fallback: If there are no MESSAGE, FILE_EDIT, or TOOL_LOG events, but we have raw text content,
-  // append it as a MESSAGE event so the user can see plain text responses (like errors).
   const eventsToRender = [...rawEvents];
   const hasContentEvent = eventsToRender.some(e =>
     e.type === 'MESSAGE' || e.type === 'FILE_EDIT' || e.type === 'TOOL_LOG'
@@ -159,6 +200,16 @@ function MessageItem({ message, isStreaming }: { message: ChatMessage, isStreami
       content: message.content.trim()
     });
   }
+
+  const handleCopy = () => {
+    const textToCopy = eventsToRender
+      .filter(e => e.type === 'MESSAGE')
+      .map(e => e.content)
+      .join('\n') || message.content;
+    navigator.clipboard.writeText(textToCopy);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div className={`p-5 border-b border-border/10 ${message.role === 'user' ? 'bg-muted/10' : 'bg-background'}`}>
@@ -184,10 +235,7 @@ function MessageItem({ message, isStreaming }: { message: ChatMessage, isStreami
                   <ChatEventRenderer
                     key={idx}
                     event={event}
-                    // It is "loading" only if:
-                    // 1. The message is currently streaming
-                    // 2. AND this is the last event in the list
-                    isLoading={isStreaming && isLast}
+                    isLoading={!!isStreaming && isLast}
                   />
                 );
               })}
@@ -196,17 +244,14 @@ function MessageItem({ message, isStreaming }: { message: ChatMessage, isStreami
             {/* Action buttons for assistant message */}
             {!message.isStreaming && eventsToRender.length > 0 && (
               <div className="flex items-center gap-1 pt-2">
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
-                  <RotateCcw className="w-3.5 h-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
-                  <ThumbsUp className="w-3.5 h-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
-                  <ThumbsDown className="w-3.5 h-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
-                  <Copy className="w-3.5 h-3.5" />
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={handleCopy}
+                  title={copied ? "Copied!" : "Copy message"}
+                  className="h-8 w-8 text-muted-foreground hover:text-primary"
+                >
+                  <Copy className={`w-3.5 h-3.5 ${copied ? 'text-green-500' : ''}`} />
                 </Button>
               </div>
             )}

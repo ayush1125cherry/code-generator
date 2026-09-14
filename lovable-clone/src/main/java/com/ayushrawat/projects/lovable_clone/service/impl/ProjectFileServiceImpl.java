@@ -20,11 +20,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Service
 @Slf4j
@@ -125,6 +129,33 @@ public class ProjectFileServiceImpl implements ProjectFileService {
         if (path.endsWith(".css")) return "text/css";
 
         return "text/plain";
+    }
+
+    @Override
+    public byte[] downloadProjectZip(Long projectId) {
+        List<ProjectFile> files = projectFileRepository.findByProjectId(projectId);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            for (ProjectFile file : files) {
+                String path = file.getPath().startsWith("/") ? file.getPath().substring(1) : file.getPath();
+                ZipEntry entry = new ZipEntry(path);
+                zos.putNextEntry(entry);
+                try {
+                    FileContentResponse contentResp = getFileContent(projectId, file.getPath());
+                    if (contentResp != null && contentResp.content() != null) {
+                        zos.write(contentResp.content().getBytes(StandardCharsets.UTF_8));
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not read content for file {}: {}", path, e.getMessage());
+                }
+                zos.closeEntry();
+            }
+            zos.finish();
+        } catch (IOException e) {
+            log.error("Failed to create zip for project {}", projectId, e);
+            throw new RuntimeException("Failed to generate zip", e);
+        }
+        return baos.toByteArray();
     }
 
 }

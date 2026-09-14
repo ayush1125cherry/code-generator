@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { isAuthenticated } from "@/lib/api";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -24,10 +24,10 @@ const Index = () => {
       </div>
 
       <div className="relative flex flex-col items-center">
-        <div className="w-20 h-20 rounded-2xl bg-primary/20 flex items-center justify-center mb-6 glow-effect">
-          <Sparkles className="w-10 h-10 text-primary" />
+        <div className="w-20 h-20 flex items-center justify-center mb-6 glow-effect">
+          <img src="/logo.png" alt="Devify Logo" className="w-20 h-20 object-contain drop-shadow-xl" />
         </div>
-        <h1 className="text-3xl font-bold gradient-text mb-4">Lovable</h1>
+        <h1 className="text-3xl font-bold gradient-text mb-4">Devify</h1>
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="w-4 h-4 animate-spin" />
           <span>Loading...</span>

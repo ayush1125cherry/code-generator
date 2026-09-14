@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Preview Project</title>
+  
+  <!-- Tailwind CSS & DaisyUI CDNs -->
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.23/dist/full.min.css" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            border: 'hsl(214.3 31.8% 91.4%)',
+            background: 'hsl(0 0% 100%)',
+            foreground: 'hsl(222.2 84% 4.9%)',
+            primary: {
+              DEFAULT: 'hsl(221.2 83.2% 53.3%)',
+              foreground: 'hsl(210 40% 98%)'
+            },
+            muted: {
+              DEFAULT: 'hsl(210 40% 96.1%)',
+              foreground: 'hsl(215.4 16.3% 46.9%)'
+            }
+          }
+        }
+      }
+    };
+  </script>
+  
+  <!-- Babel Standalone for In-Browser JSX/TSX Transpilation -->
+  <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+
+  <!-- Import Map for ESM Modules via esm.sh -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1?dev",
+      "react/": "https://esm.sh/react@18.3.1/",
+      "react-dom": "https://esm.sh/react-dom@18.3.1?dev",
+      "react-dom/": "https://esm.sh/react-dom@18.3.1/",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?dev",
+      "react-router-dom": "https://esm.sh/react-router-dom@6.30.1?external=react,react-dom",
+      "lucide-react": "https://esm.sh/lucide-react@0.462.0?external=react",
+      "clsx": "https://esm.sh/clsx@2.1.1",
+      "tailwind-merge": "https://esm.sh/tailwind-merge@2.6.0",
+      "sonner": "https://esm.sh/sonner@1.7.4?external=react,react-dom",
+      "@tanstack/react-query": "https://esm.sh/@tanstack/react-query@5.83.0?external=react,react-dom"
+    }
+  }
+  </script>
+
+  <style>
+    body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    #error-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.95);
+      color: #f87171;
+      padding: 24px;
+      font-family: monospace;
+      z-index: 99999;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body class="bg-background text-foreground antialiased min-h-screen">
+  <div id="root"></div>
+  <div id="error-overlay"></div>
+
+  <script type="module">
+    import React from 'react';
+    import { createRoot } from 'react-dom/client';
+    import * as ReactRouterDOM from 'react-router-dom';
+    import * as LucideIcons from 'lucide-react';
+    import clsx from 'clsx';
+    import { twMerge } from 'tailwind-merge';
+    import * as TanstackReactQuery from '@tanstack/react-query';
+    import * as Sonner from 'sonner';
+
+    window.React = React;
+    window.createRoot = createRoot;
+
+    const filesBase64 = "__FILES_BASE64__";
+    let files = {};
+    try {
+      const filesJson = new TextDecoder().decode(Uint8Array.from(atob(filesBase64), c => c.charCodeAt(0)));
+      files = JSON.parse(filesJson);
+    } catch (e) {
+      console.error("Failed to parse project files:", e);
+    }
+
+    function reportError(err, filename, lineno) {
+      console.error("Preview Runtime Error:", err);
+      const overlay = document.getElementById('error-overlay');
+      if (overlay) {
+        overlay.style.display = 'block';
+        overlay.innerText = `[Runtime Error]\n${err?.stack || err?.message || err}\n\nFile: ${filename || 'unknown'}:${lineno || 0}`;
+      }
+      if (window.parent) {
+        window.parent.postMessage({
+          type: 'PreviewError',
+          subType: 'runtime',
+          payload: {
+            message: err?.message || String(err),
+            stack: err?.stack || '',
+            source: filename || '',
+            lineno: lineno || 0
+          }
+        }, '*');
+      }
+    }
+
+    window.onerror = function(msg, url, line, col, error) {
+      reportError(error || msg, url, line);
+      return false;
+    };
+
+    window.onunhandledrejection = function(event) {
+      reportError(event.reason, 'UnhandledPromiseRejection', 0);
+    };
+
+    const moduleCache = new Map();
+
+    // Helper for cn utility if project uses clsx + tailwind-merge
+    const cnUtility = (...inputs) => twMerge(clsx(inputs));
+
+    // Custom router wrapper to ensure base route works on /preview/:id
+    const CustomBrowserRouter = ({ children, ...props }) => {
+      return React.createElement(ReactRouterDOM.BrowserRouter, {
+        basename: window.location.pathname.replace(/\/$/, ''),
+        ...props
+      }, children);
+    };
+
+    const RouterProxy = new Proxy(ReactRouterDOM, {
+      get(target, prop) {
+        if (prop === 'BrowserRouter') {
+          return CustomBrowserRouter;
+        }
+        return target[prop];
+      }
+    });
+
+    function resolveFile(specifier, currentPath) {
+      let normalized = specifier.replace(/^@\//, 'src/');
+      if (normalized.startsWith('./') || normalized.startsWith('../')) {
+        const currentParts = currentPath.split('/');
+        currentParts.pop();
+        const specParts = normalized.split('/');
+        for (const part of specParts) {
+          if (part === '..') currentParts.pop();
+          else if (part !== '.') currentParts.push(part);
+        }
+        normalized = currentParts.join('/');
+      }
+
+      const candidates = [
+        normalized,
+        normalized + '.tsx',
+        normalized + '.ts',
+        normalized + '.jsx',
+        normalized + '.js',
+        'src/' + normalized,
+        'src/' + normalized + '.tsx',
+        'src/' + normalized + '.ts',
+        'src/' + normalized + '.jsx',
+        'src/' + normalized + '.js',
+        normalized + '/index.tsx',
+        normalized + '/index.ts',
+        normalized + '/index.jsx',
+        normalized + '/index.js'
+      ];
+
+      for (const c of candidates) {
+        if (files[c] !== undefined) return { path: c, content: files[c] };
+        const noSrc = c.replace(/^src\//, '');
+        if (files[noSrc] !== undefined) return { path: noSrc, content: files[noSrc] };
+      }
+      return null;
+    }
+
+    function sanitizeCode(code) {
+      if (!code) return '';
+      return code
+        .replace(/\\`/g, '`')
+        .replace(/\\\$\{/g, '${');
+    }
+
+    const FallbackIcon = (props = {}) => {
+      const size = props.size || props.width || 20;
+      return React.createElement('svg', {
+        xmlns: "http://www.w3.org/2000/svg",
+        width: size,
+        height: size,
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth: props.strokeWidth || 2,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        className: props.className || "",
+        style: props.style,
+        onClick: props.onClick
+      }, React.createElement('circle', { cx: 12, cy: 12, r: 9, strokeDasharray: "4 4" }));
+    };
+
+    const LucideProxy = new Proxy(LucideIcons, {
+      get(target, prop) {
+        if (typeof prop !== 'string' || prop === 'default' || prop === '__esModule') {
+          return target[prop] || target;
+        }
+        if (target[prop]) return target[prop];
+        // Case-insensitive lookup
+        const found = Object.keys(target).find(k => k.toLowerCase() === prop.toLowerCase());
+        if (found && target[found]) return target[found];
+        // Fallback placeholder icon component so React never crashes on undefined
+        return FallbackIcon;
+      }
+    });
+
+    function makeModuleProxy(modExports) {
+      if (!modExports || (typeof modExports !== 'object' && typeof modExports !== 'function')) {
+        return modExports;
+      }
+      return new Proxy(modExports, {
+        get(target, prop) {
+          if (prop in target && target[prop] !== undefined) {
+            return target[prop];
+          }
+          if (prop === 'default' && typeof target === 'function') {
+            return target;
+          }
+          if (target.default !== undefined) {
+            if (typeof target.default === 'object' && target.default !== null && prop in target.default) {
+              return target.default[prop];
+            }
+            if (typeof target.default === 'function') {
+              return target.default;
+            }
+          }
+          // Return first exported component if requested export is undefined
+          const candidate = Object.values(target).find(v => typeof v === 'function');
+          if (candidate) return candidate;
+          return target[prop];
+        }
+      });
+    }
+
+    function syncRequire(dep, fromPath) {
+      if (dep === 'react') return React;
+      if (dep === 'react/jsx-runtime') return { jsx: React.createElement, jsxs: React.createElement, Fragment: React.Fragment };
+      if (dep === 'react-dom/client' || dep === 'react-dom') return { createRoot, default: { createRoot } };
+      if (dep === 'react-router-dom') return RouterProxy;
+      if (dep === 'lucide-react') return LucideProxy;
+      if (dep === 'clsx') return clsx;
+      if (dep === 'tailwind-merge') return { twMerge, default: twMerge };
+      if (dep === '@tanstack/react-query') return TanstackReactQuery;
+      if (dep === 'sonner') return Sonner;
+      if (dep.endsWith('.css')) return {};
+      if (dep === '@/lib/utils' || dep === './lib/utils' || dep === '../lib/utils') {
+        return { cn: cnUtility, default: cnUtility };
+      }
+
+      const res = resolveFile(dep, fromPath);
+      if (res && moduleCache.has(res.path)) {
+        return moduleCache.get(res.path);
+      }
+      if (res) {
+        const subTrans = Babel.transform(sanitizeCode(res.content), {
+          presets: [
+            ['react', { runtime: 'classic' }],
+            ['typescript', { isTSX: true, allExtensions: true }]
+          ],
+          plugins: [['transform-modules-commonjs', { strict: false }]],
+          filename: res.path
+        }).code;
+        const subMod = { exports: {} };
+        moduleCache.set(res.path, subMod.exports);
+        const subFn = new Function('exports', 'require', 'module', 'React', subTrans);
+        subFn(subMod.exports, (d) => syncRequire(d, res.path), subMod, React);
+        const proxied = makeModuleProxy(subMod.exports);
+        moduleCache.set(res.path, proxied);
+        return proxied;
+      }
+      return {};
+    }
+
+    async function bootstrap() {
+      try {
+        for (const [p, content] of Object.entries(files)) {
+          if (p.endsWith('.css')) {
+            const style = document.createElement('style');
+            style.textContent = content;
+            document.head.appendChild(style);
+          }
+        }
+
+        const entryCandidates = [
+          'src/App.tsx', 'src/App.jsx', 'App.tsx', 'App.jsx',
+          'src/pages/Index.tsx', 'src/pages/Index.jsx', 'pages/Index.tsx',
+          'src/main.tsx', 'src/main.jsx', 'main.tsx'
+        ];
+
+        let entryPath = null;
+        for (const c of entryCandidates) {
+          if (files[c]) {
+            entryPath = c;
+            break;
+          }
+        }
+
+        if (!entryPath) {
+          document.getElementById('root').innerHTML = '<div class="p-8 text-center text-gray-500">No React entry component found.</div>';
+          return;
+        }
+
+        const entryContent = files[entryPath];
+        const transformed = Babel.transform(sanitizeCode(entryContent), {
+          presets: [
+            ['react', { runtime: 'classic' }],
+            ['typescript', { isTSX: true, allExtensions: true }]
+          ],
+          plugins: [['transform-modules-commonjs', { strict: false }]],
+          filename: entryPath
+        }).code;
+
+        const entryMod = { exports: {} };
+        const entryFn = new Function('exports', 'require', 'module', 'React', transformed);
+        entryFn(entryMod.exports, (d) => syncRequire(d, entryPath), entryMod, React);
+
+        let RootComponent = entryMod.exports.default || entryMod.exports.App || entryMod.exports.Index || entryMod.exports;
+
+        if (RootComponent && typeof RootComponent === 'object' && RootComponent.default) {
+          RootComponent = RootComponent.default;
+        }
+
+        if (typeof RootComponent === 'function') {
+          const root = createRoot(document.getElementById('root'));
+          root.render(React.createElement(RootComponent));
+        } else {
+          console.error("RootComponent is not a valid React component:", RootComponent);
+        }
+      } catch (err) {
+        reportError(err, 'Bootstrap', 1);
+      }
+    }
+
+    bootstrap();
+  </script>
+</body>
+</html>

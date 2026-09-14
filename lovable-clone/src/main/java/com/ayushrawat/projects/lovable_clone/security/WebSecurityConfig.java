@@ -2,11 +2,7 @@ package com.ayushrawat.projects.lovable_clone.security;
 
 import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
-import org.apache.catalina.User;
-import org.apache.catalina.filters.HttpHeaderSecurityFilter;
-import org.mapstruct.BeanMapping;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
@@ -18,7 +14,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 @RequiredArgsConstructor
@@ -33,11 +28,12 @@ public class WebSecurityConfig {
         httpSecurity
                 .csrf(csrfConfig-> csrfConfig.disable())
                 .cors(Customizer.withDefaults())
+                .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable()))
                 .sessionManagement(sessionConfig-> sessionConfig.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth-> auth
                         .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .dispatcherTypeMatchers((DispatcherType.ERROR)).permitAll()
-                        .requestMatchers("/api/auth/**","/webhooks/**").permitAll()
+                        .requestMatchers("/api/auth/**","/webhooks/**","/preview/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)

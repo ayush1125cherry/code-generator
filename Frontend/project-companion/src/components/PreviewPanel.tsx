@@ -11,24 +11,45 @@ interface PreviewPanelProps {
   runtimeError: RuntimeError | null;
   onDismiss: () => void;
   onFix: (error: RuntimeError) => void;
+  refreshTrigger?: number;
 }
 
-export function PreviewPanel({ projectId, runtimeError, onDismiss, onFix }: PreviewPanelProps) {
+export function PreviewPanel({ projectId, runtimeError, onDismiss, onFix, refreshTrigger }: PreviewPanelProps) {
   const previewUrlKey = `${PREVIEW_URL_KEY}_${projectId}`;
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const defaultPreviewUrl = `${import.meta.env.VITE_API_URL || "http://localhost:8080"}/preview/${projectId}`;
 
-  const [previewUrl, setPreviewUrl] = useState<string | null>(() => {
-    // Load from localStorage on mount
-    return localStorage.getItem(previewUrlKey);
+  const [previewUrl, setPreviewUrl] = useState<string>(() => {
+    // Load from localStorage on mount or fallback to default
+    return localStorage.getItem(previewUrlKey) || defaultPreviewUrl;
+  });
+  const [urlInput, setUrlInput] = useState<string>(() => {
+    return localStorage.getItem(previewUrlKey) || defaultPreviewUrl;
   });
   const [isDeploying, setIsDeploying] = useState(false);
   const { toast } = useToast();
 
+  // Reload iframe when refreshTrigger updates
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0 && iframeRef.current) {
+      const currentSrc = iframeRef.current.src;
+      // Force iframe to reload by resetting src
+      iframeRef.current.src = "";
+      setTimeout(() => {
+        if (iframeRef.current) {
+          iframeRef.current.src = currentSrc;
+        }
+      }, 50);
+    }
+  }, [refreshTrigger]);
+
   // Sync previewUrl state when projectId changes
   useEffect(() => {
     const storedUrl = localStorage.getItem(previewUrlKey);
-    setPreviewUrl(storedUrl);
-  }, [projectId, previewUrlKey]);
+    const targetUrl = storedUrl || defaultPreviewUrl;
+    setPreviewUrl(targetUrl);
+    setUrlInput(targetUrl);
+  }, [projectId, previewUrlKey, defaultPreviewUrl]);
 
   // Store previewUrl in localStorage when it changes
   useEffect(() => {
@@ -37,12 +58,29 @@ export function PreviewPanel({ projectId, runtimeError, onDismiss, onFix }: Prev
     }
   }, [previewUrl, previewUrlKey]);
 
+  const handleUrlSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    let targetUrl = urlInput.trim();
+    if (targetUrl && !/^https?:\/\//i.test(targetUrl)) {
+      targetUrl = `http://${targetUrl}`;
+    }
+    setPreviewUrl(targetUrl || null);
+    if (targetUrl) {
+      localStorage.setItem(previewUrlKey, targetUrl);
+      toast({
+        title: "Preview URL updated",
+        description: `Connected to ${targetUrl}`,
+      });
+    }
+  };
+
   const handleDeploy = async () => {
     setIsDeploying(true);
 
     try {
       const response = await api.deploy(projectId);
       setPreviewUrl(response.previewUrl);
+      setUrlInput(response.previewUrl);
       toast({
         title: "Deployment successful",
         description: "Your preview is now ready",
@@ -60,7 +98,8 @@ export function PreviewPanel({ projectId, runtimeError, onDismiss, onFix }: Prev
 
   const handleRefresh = () => {
     if (iframeRef.current) {
-      iframeRef.current.src = iframeRef.current.src;
+      const currentSrc = iframeRef.current.src;
+      iframeRef.current.src = currentSrc;
     }
   };
 
@@ -80,12 +119,19 @@ export function PreviewPanel({ projectId, runtimeError, onDismiss, onFix }: Prev
           </Button>
         </div>
 
-        <div className="flex-1 flex items-center h-8 px-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
-          <Globe className="w-3.5 h-3.5 mr-2 shrink-0" />
-          <span className="truncate">
-            {previewUrl || "Click 'Run Preview' to deploy"}
-          </span>
-        </div>
+        <form 
+          onSubmit={handleUrlSubmit}
+          className="flex-1 flex items-center h-8 px-2.5 rounded-md bg-muted/50 border border-border/40 focus-within:border-primary/50 transition-colors"
+        >
+          <Globe className="w-3.5 h-3.5 mr-2 shrink-0 text-muted-foreground" />
+          <input
+            type="text"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            placeholder="Enter preview URL (e.g. http://localhost:5174) & press Enter"
+            className="w-full bg-transparent border-none outline-none text-xs text-foreground placeholder:text-muted-foreground/50 font-mono"
+          />
+        </form>
 
         <div className="flex items-center gap-1">
           {previewUrl && (

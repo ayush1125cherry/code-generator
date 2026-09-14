@@ -10,7 +10,7 @@ const ATTR_REGEX = /(?:path|args)="([^"]+)"/i;
 export const useStreamParser = (streamBuffer: string) => {
   return useMemo(() => {
     const events: ChatEvent[] = [];
-    let match: RegExpExecArray | [any, any, any];
+    let match: RegExpExecArray | null;
     
     // Reset regex index
     PARSE_REGEX.lastIndex = 0;

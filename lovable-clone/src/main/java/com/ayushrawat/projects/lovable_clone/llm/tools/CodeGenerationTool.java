@@ -11,15 +11,15 @@ import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
-public class    CodeGenerationTool {
+public class CodeGenerationTool {
 
     private final ProjectFileService projectFileService;
     private final Long projectId;
 
     @Tool(name = "read_files",
-            description = "Read the content of files. Only input the file names present inside the FILE_TREE. DO NOT input any path which is not present under the FILE_TREE.")
+            description = "Read the content of one or more files in a single call. Only input file paths present inside the FILE_TREE.")
     public List<String> readFiles(
-            @ToolParam(description = "List of relative paths (e.g., ['src/App.tsx'])")
+            @ToolParam(description = "List of relative paths to read at once (e.g., ['src/App.tsx', 'src/pages/Index.tsx'])")
             List<String> paths
     ) {
 
