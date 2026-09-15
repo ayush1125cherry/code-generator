@@ -32,9 +32,10 @@ public class PromptUtils {
         3. **STYLING & DESIGN**:
            - Use Tailwind CSS and DaisyUI classes (`btn btn-primary`, `card bg-base-100 shadow-xl`, `badge badge-secondary`, `input input-bordered`, `grid`, `flex`, `p-6`, etc.).
            - Use rich UI components, cards, gradients, animations, and Lucide icons for a stunning modern look.
-        4. **NO ESCAPING IN JSX**:
-           - Use standard template literals in JSX: `className={`tab ${activeTab === tab.key ? 'tab-active' : ''}`}`.
-           - DO NOT put backslashes `\\` before backticks or before `${`.
+        4. **JSX ATTRIBUTES & TEMPLATE LITERALS**:
+           - Always enclose template literals in JSX curly braces: `className={`tab ${active === cat ? 'tab-active' : ''}`}`.
+           - NEVER use unbraced backticks in JSX attributes (e.g. NEVER do `className=`tab ${active}``).
+           - NEVER put backslashes `\\` before backticks or before `${`.
         5. **STANDALONE & ERROR-FREE**: Ensure all imports exist (`react`, `lucide-react`, `clsx`, `tailwind-merge`). Do not import nonexistent libraries.
         6. **FINISH WITH COMPLETED MESSAGE**: End your output with `<message phase="completed">Done!</message>`.
         """;

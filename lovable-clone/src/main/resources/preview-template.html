@@ -187,9 +187,22 @@
 
     function sanitizeCode(code) {
       if (!code) return '';
-      return code
-        .replace(/\\`/g, '`')
-        .replace(/\\\$\{/g, '${');
+      let clean = code;
+
+      // Fix escaped backticks \` -> `
+      clean = clean.replace(/\\`/g, '`');
+      // Fix escaped template expressions \${ -> ${
+      clean = clean.replace(/\\\$\{/g, '${');
+      // Fix double backslashes before backticks \\` -> `
+      clean = clean.replace(/\\\\`/g, '`');
+
+      // Fix unbraced template literals in JSX attributes: className=`...` -> className={`...`}
+      clean = clean.replace(/([a-zA-Z0-9_-]+)=`([^`]*?)`/g, '$1={`$2`}');
+
+      // Fix accidental double-quoted template literals: className="`...`" -> className={`...`}
+      clean = clean.replace(/([a-zA-Z0-9_-]+)="`([^"]*?)`"/g, '$1={`$2`}');
+
+      return clean;
     }
 
     const FallbackIcon = (props = {}) => {
@@ -272,13 +285,14 @@
         return moduleCache.get(res.path);
       }
       if (res) {
+        const filePath = res.path.endsWith('.tsx') || res.path.endsWith('.jsx') ? res.path : res.path + '.tsx';
         const subTrans = Babel.transform(sanitizeCode(res.content), {
           presets: [
             ['react', { runtime: 'classic' }],
             ['typescript', { isTSX: true, allExtensions: true }]
           ],
           plugins: [['transform-modules-commonjs', { strict: false }]],
-          filename: res.path
+          filename: filePath
         }).code;
         const subMod = { exports: {} };
         moduleCache.set(res.path, subMod.exports);
@@ -321,13 +335,14 @@
         }
 
         const entryContent = files[entryPath];
+        const entryFile = entryPath.endsWith('.tsx') || entryPath.endsWith('.jsx') ? entryPath : entryPath + '.tsx';
         const transformed = Babel.transform(sanitizeCode(entryContent), {
           presets: [
             ['react', { runtime: 'classic' }],
             ['typescript', { isTSX: true, allExtensions: true }]
           ],
           plugins: [['transform-modules-commonjs', { strict: false }]],
-          filename: entryPath
+          filename: entryFile
         }).code;
 
         const entryMod = { exports: {} };
