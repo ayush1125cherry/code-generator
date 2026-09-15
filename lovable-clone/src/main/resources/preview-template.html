@@ -189,20 +189,27 @@
       if (!code) return '';
       let clean = code;
 
-      // Fix escaped backticks \` -> `
+      // 1. Strip CDATA wrappers: <![CDATA[ ... ]]>
+      clean = clean.replace(/^<!\[CDATA\[\s*/i, '').replace(/\s*\]\]>$/i, '');
+      clean = clean.replace(/<!\[CDATA\[/gi, '').replace(/\]\]>/gi, '');
+
+      // 2. Strip Markdown code fences: ```tsx ... ```
+      clean = clean.replace(/^```[a-zA-Z0-9_-]*\s*\n/i, '').replace(/\n```\s*$/i, '');
+
+      // 3. Fix escaped backticks \` -> `
       clean = clean.replace(/\\`/g, '`');
       // Fix escaped template expressions \${ -> ${
       clean = clean.replace(/\\\$\{/g, '${');
       // Fix double backslashes before backticks \\` -> `
       clean = clean.replace(/\\\\`/g, '`');
 
-      // Fix unbraced template literals in JSX attributes: className=`...` -> className={`...`}
+      // 4. Fix unbraced template literals in JSX attributes: className=`...` -> className={`...`}
       clean = clean.replace(/([a-zA-Z0-9_-]+)=`([^`]*?)`/g, '$1={`$2`}');
 
-      // Fix accidental double-quoted template literals: className="`...`" -> className={`...`}
+      // 5. Fix accidental double-quoted template literals: className="`...`" -> className={`...`}
       clean = clean.replace(/([a-zA-Z0-9_-]+)="`([^"]*?)`"/g, '$1={`$2`}');
 
-      return clean;
+      return clean.trim();
     }
 
     const FallbackIcon = (props = {}) => {

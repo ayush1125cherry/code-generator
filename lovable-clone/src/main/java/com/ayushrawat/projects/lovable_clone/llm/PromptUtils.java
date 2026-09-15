@@ -36,7 +36,10 @@ public class PromptUtils {
            - Always enclose template literals in JSX curly braces: `className={`tab ${active === cat ? 'tab-active' : ''}`}`.
            - NEVER use unbraced backticks in JSX attributes (e.g. NEVER do `className=`tab ${active}``).
            - NEVER put backslashes `\\` before backticks or before `${`.
-        5. **STANDALONE & ERROR-FREE**: Ensure all imports exist (`react`, `lucide-react`, `clsx`, `tailwind-merge`). Do not import nonexistent libraries.
-        6. **FINISH WITH COMPLETED MESSAGE**: End your output with `<message phase="completed">Done!</message>`.
+        5. **NO CDATA OR MARKDOWN FENCES**:
+           - NEVER wrap code in `<![CDATA[` or `]]>`.
+           - NEVER wrap code in markdown code fences (` ```tsx `) inside `<file>` tags. Output raw React code directly.
+        6. **STANDALONE & ERROR-FREE**: Ensure all imports exist (`react`, `lucide-react`, `clsx`, `tailwind-merge`). Do not import nonexistent libraries.
+        7. **FINISH WITH COMPLETED MESSAGE**: End your output with `<message phase="completed">Done!</message>`.
         """;
 }

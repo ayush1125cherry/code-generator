@@ -4,4 +4,13 @@
     <option name="defaultUnitInitialized" value="true" />
     <option name="renamerInitialized" value="true" />
   </component>
+  <component name="PersistenceUnitSettings">
+    <persistence-units>
+      <persistence-unit moduleName="lovable-clone" name="Default">
+        <packages>
+          <package value="com.ayushrawat.projects.lovable_clone" />
+        </packages>
+      </persistence-unit>
+    </persistence-units>
+  </component>
 </project>

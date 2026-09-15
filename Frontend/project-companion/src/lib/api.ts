@@ -57,6 +57,15 @@ async function parseErrorMessage(response: Response, defaultMsg: string): Promis
   return defaultMsg;
 }
 
+function cleanExtractedCode(raw: string): string {
+  if (!raw) return "";
+  let clean = raw.trim();
+  clean = clean.replace(/^<!\[CDATA\[\s*/i, "").replace(/\s*\]\]>$/i, "");
+  clean = clean.replace(/<!\[CDATA\[/gi, "").replace(/\]\]>/gi, "");
+  clean = clean.replace(/^```[a-zA-Z0-9_-]*\s*\n/i, "").replace(/\n```\s*$/i, "");
+  return clean.trim();
+}
+
 // API response format for files endpoint
 interface FilesApiResponse {
   files: { path: string }[];
@@ -405,7 +414,7 @@ export const api = {
                 const filePath = fileMatch[1];
                 const fileBody = fileMatch[2];
                 if (filePath && fileBody) {
-                  onFile(filePath, fileBody);
+                  onFile(filePath, cleanExtractedCode(fileBody));
                 }
               }
             } catch (e) {
@@ -421,7 +430,7 @@ export const api = {
           const filePath = finalMatch[1];
           const fileBody = finalMatch[2];
           if (filePath && fileBody) {
-            onFile(filePath, fileBody);
+            onFile(filePath, cleanExtractedCode(fileBody));
           }
         }
 

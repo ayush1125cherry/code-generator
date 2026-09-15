@@ -47,24 +47,27 @@ public class LlmResponseParser {
             String attributes = matcher.group(3);
             String content = matcher.group(4).trim();
 
+            if ("file".equals(tagName)) {
+                content = cleanFileContent(content);
+            }
+
             // Extract attributes map
             Map<String, String> attrMap = extractAttributes(attributes);
 
             ChatEvent.ChatEventBuilder builder = ChatEvent.builder()
                     .chatMessage(parentMessage)
-                    .content(content) // This is your Markdown content
+                    .content(content)
                     .sequenceOrder(orderCounter++);
 
             switch (tagName) {
                 case "message" -> builder.type(ChatEventType.MESSAGE);
                 case "file" -> {
                     builder.type(ChatEventType.FILE_EDIT);
-                    builder.filePath(attrMap.get("path")); // Required for files
-//                    builder.content(null);
+                    builder.filePath(attrMap.get("path"));
                 }
                 case "tool" -> {
                     builder.type(ChatEventType.TOOL_LOG);
-                    builder.metadata(attrMap.get("args")); // Store raw file list in metadata
+                    builder.metadata(attrMap.get("args"));
                 }
                 default -> { continue; }
             }
@@ -73,6 +76,27 @@ public class LlmResponseParser {
         }
 
         return events;
+    }
+
+    private String cleanFileContent(String raw) {
+        if (raw == null) return "";
+        String clean = raw.trim();
+        // Remove CDATA
+        if (clean.startsWith("<![CDATA[")) {
+            clean = clean.substring(9).trim();
+        }
+        if (clean.endsWith("]]>")) {
+            clean = clean.substring(0, clean.length() - 3).trim();
+        }
+        clean = clean.replaceAll("<!\\[CDATA\\[|\\]\\]>", "").trim();
+        // Remove markdown code fences
+        if (clean.startsWith("```")) {
+            clean = clean.replaceFirst("^```[a-zA-Z0-9_-]*\\s*\\n", "").trim();
+        }
+        if (clean.endsWith("```")) {
+            clean = clean.replaceFirst("\\n```\\s*$", "").trim();
+        }
+        return clean;
     }
 
     private Map<String, String> extractAttributes(String attributeString) {
