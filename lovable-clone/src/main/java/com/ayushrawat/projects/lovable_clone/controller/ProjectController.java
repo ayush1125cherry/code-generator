@@ -17,6 +17,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/projects")
 @RequiredArgsConstructor
+@lombok.extern.slf4j.Slf4j
 public class ProjectController {
 
     private final ProjectService projectService;
@@ -41,6 +42,7 @@ public class ProjectController {
 
     @PostMapping
     public ResponseEntity<ProjectResponse> createProject(@RequestBody @Valid ProjectRequest request) {
+        log.info("createProject called with name: {}", request.name());
         return ResponseEntity.status(HttpStatus.CREATED).body(projectService.createProject(request));
     }
 

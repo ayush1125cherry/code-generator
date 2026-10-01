@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -315,9 +315,12 @@
     async function bootstrap() {
       try {
         for (const [p, content] of Object.entries(files)) {
-          if (p.endsWith('.css')) {
+          if (p.endsWith('.css') && content) {
+            const cleanCss = content
+              .replace(/@import\s+["'][^"']*tailwindcss[^"']*["'];?/gi, '')
+              .replace(/@plugin\s+["'][^"']*daisyui[^"']*["'];?/gi, '');
             const style = document.createElement('style');
-            style.textContent = content;
+            style.textContent = cleanCss;
             document.head.appendChild(style);
           }
         }

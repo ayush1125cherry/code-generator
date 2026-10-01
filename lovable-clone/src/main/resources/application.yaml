@@ -17,7 +17,7 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
   ai:
     openai:
-      api-key: ${AI_API_KEY:your_groq_api_key_here}
+      api-key: ${AI_API_KEY:gsk_placeholder_key}
       base-url: https://api.groq.com/openai
       chat:
         completions-path: /v1/chat/completions
@@ -26,7 +26,7 @@ spring:
           temperature: 0.0
 
 jwt:
-  secret-key: ${JWT_SECRET_KEY:jakljnfmsdanmonmsannagsmnkmewnansdlknaskjk}
+  secret-key: ${JWT_SECRET_KEY:jwt_secret_placeholder_key_at_least_32_chars}
 
 client:
   url: ${CLIENT_URL:http://localhost:8080}
