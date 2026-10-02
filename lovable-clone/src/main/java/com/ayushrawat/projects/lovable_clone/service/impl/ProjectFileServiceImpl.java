@@ -10,8 +10,10 @@ import com.ayushrawat.projects.lovable_clone.mapper.ProjectFileMapper;
 import com.ayushrawat.projects.lovable_clone.repository.ProjectFileRepository;
 import com.ayushrawat.projects.lovable_clone.repository.ProjectRepository;
 import com.ayushrawat.projects.lovable_clone.service.ProjectFileService;
+import io.minio.BucketExistsArgs;
 import io.minio.GetObjectArgs;
-import io.minio.    MinioClient;
+import io.minio.MakeBucketArgs;
+import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
@@ -71,6 +73,16 @@ public class ProjectFileServiceImpl implements ProjectFileService {
             String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
             return new FileContentResponse(path, content);
         } catch (Exception e) {
+            log.warn("MinIO read failed for {}/{}: {}. Trying classpath fallback...", projectId, cleanPath, e.getMessage());
+            try {
+                org.springframework.core.io.ClassPathResource resource =
+                        new org.springframework.core.io.ClassPathResource("starter-template/" + cleanPath);
+                if (resource.exists()) {
+                    String fallbackContent = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                    return new FileContentResponse(path, fallbackContent);
+                }
+            } catch (Exception ignored) {
+            }
             log.error("Failed to read file: {}/{}", projectId, cleanPath, e);
             throw new RuntimeException("Failed to read file content", e);
         }
@@ -90,6 +102,11 @@ public class ProjectFileServiceImpl implements ProjectFileService {
         String bucket = (projectBucket != null && !projectBucket.isBlank()) ? projectBucket : BUCKET_NAME;
 
         try {
+            if (!minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build())) {
+                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
+                log.info("Auto-created missing bucket: {}", bucket);
+            }
+
             byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
             InputStream inputStream = new ByteArrayInputStream(contentBytes);
             // saving the file content

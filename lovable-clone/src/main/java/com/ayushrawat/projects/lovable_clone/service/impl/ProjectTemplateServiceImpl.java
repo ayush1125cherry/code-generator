@@ -24,6 +24,7 @@ public class ProjectTemplateServiceImpl implements ProjectTemplateService {
     private final MinioClient minioClient;
     private final ProjectFileRepository projectFileRepository;
     private final ProjectRepository projectRepository;
+    private final com.ayushrawat.projects.lovable_clone.config.MinioInitializer minioInitializer;
 
     private static final String TEMPLATE_BUCKET = "starter-project";
     private static final String TARGET_BUCKET = "projects";
@@ -36,6 +37,8 @@ public class ProjectTemplateServiceImpl implements ProjectTemplateService {
                 () -> new ResourceNotFoundException("Project", projectId.toString()));
 
         try {
+            minioInitializer.ensureBucketsAndTemplates();
+
             Iterable<Result<Item>> results = minioClient.listObjects(
                     ListObjectsArgs.builder()
                             .bucket(TEMPLATE_BUCKET)
