@@ -105,14 +105,10 @@ public class AiGenerationServiceImpl implements AIGenerationService {
                 })
                 .doOnComplete(()->{
                     Schedulers.boundedElastic().schedule(()->{
-                        try {
-                            long finishedAt = endTime.get() > 0 ? endTime.get() : System.currentTimeMillis();
-                            long duration = Math.max(1, (finishedAt - startTime.get()) / 1000);
+                        long finishedAt = endTime.get() > 0 ? endTime.get() : System.currentTimeMillis();
+                        long duration = Math.max(1, (finishedAt - startTime.get()) / 1000);
 
-                            finalizeChats(userMessage, chatSession, fullResponseBuffer.toString(), duration, usageRef.get(), userId);
-                        } catch (Exception e) {
-                            log.error("Fatal error in finalizeChats for projectId: {}", projectId, e);
-                        }
+                        finalizeChats(userMessage,chatSession,fullResponseBuffer.toString(),duration,usageRef.get(),userId);
                     });
 
                 })
@@ -127,13 +123,13 @@ public class AiGenerationServiceImpl implements AIGenerationService {
                 .filter(sr -> sr.text() != null && !sr.text().isEmpty());
     }
 
-    private void finalizeChats(String userMessage, ChatSession chatSession, String fullText, Long duration, Usage usage, Long userId) {
+    private void finalizeChats(String userMessage, ChatSession chatSession, String fullText, Long duration,Usage usage,Long userId) {
         Long projectId = chatSession.getProject().getId();
 
         int promptTokens = usage != null ? usage.getPromptTokens() : 0;
         int completionTokens = usage != null ? usage.getCompletionTokens() : 0;
 
-        if (usage != null) {
+        if(usage != null) {
             int totalTokens = usage.getTotalTokens();
             usageService.recordTokenUsage(chatSession.getUser().getId(), totalTokens);
         }
@@ -146,6 +142,8 @@ public class AiGenerationServiceImpl implements AIGenerationService {
                         .content(userMessage)
                         .tokensUsed(promptTokens)
                         .build());
+
+
 
         ChatMessage assistantChatMessage = ChatMessage.builder()
                 .role(MessageRole.ASSISTANT)
@@ -160,23 +158,13 @@ public class AiGenerationServiceImpl implements AIGenerationService {
         chatEventList.addFirst(ChatEvent.builder()
                 .type(ChatEventType.THOUGHT)
                 .chatMessage(assistantChatMessage)
-                .content("Thought for " + duration + "s")
+                .content("Thought for "+duration+"s")
                 .sequenceOrder(0)
                 .build());
 
-        long fileEditCount = chatEventList.stream()
+        chatEventList.stream()
                 .filter(e -> e.getType() == ChatEventType.FILE_EDIT && e.getFilePath() != null && !e.getFilePath().isBlank() && e.getContent() != null)
-                .peek(e -> {
-                    try {
-                        log.info("Saving generated file to project {}: path={} (contentLength={})", projectId, e.getFilePath(), e.getContent().length());
-                        projectFileService.saveFile(projectId, e.getFilePath(), e.getContent());
-                    } catch (Exception ex) {
-                        log.error("Failed to save generated file: {} for projectId: {}", e.getFilePath(), projectId, ex);
-                    }
-                })
-                .count();
-
-        log.info("finalizeChats completed for projectId {}: parsed {} events with {} file edits saved", projectId, chatEventList.size(), fileEditCount);
+                .forEach(e -> projectFileService.saveFile(projectId, e.getFilePath(), e.getContent()));
 
         chatEventRepository.saveAll(chatEventList);
     }

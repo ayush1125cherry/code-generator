@@ -1,6 +1,5 @@
 server:
   port: ${PORT:8080}
-  external-url: ${RENDER_EXTERNAL_URL:${CLIENT_URL:http://localhost:8080}}
 
 spring:
   application:

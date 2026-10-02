@@ -19,20 +19,12 @@ export function PreviewPanel({ projectId, runtimeError, onDismiss, onFix, refres
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const defaultPreviewUrl = `${import.meta.env.VITE_API_URL || "http://localhost:8080"}/preview/${projectId}`;
 
-  const isLocalHost = typeof window !== "undefined" && window.location.hostname.includes("localhost");
-  const getCleanStoredUrl = (key: string) => {
-    const stored = localStorage.getItem(key);
-    if (!stored) return null;
-    if (stored.includes("localhost") && !isLocalHost) return null;
-    return stored;
-  };
-
   const [previewUrl, setPreviewUrl] = useState<string>(() => {
     // Load from localStorage on mount or fallback to default
-    return getCleanStoredUrl(previewUrlKey) || defaultPreviewUrl;
+    return localStorage.getItem(previewUrlKey) || defaultPreviewUrl;
   });
   const [urlInput, setUrlInput] = useState<string>(() => {
-    return getCleanStoredUrl(previewUrlKey) || defaultPreviewUrl;
+    return localStorage.getItem(previewUrlKey) || defaultPreviewUrl;
   });
   const [isDeploying, setIsDeploying] = useState(false);
   const { toast } = useToast();
@@ -53,7 +45,7 @@ export function PreviewPanel({ projectId, runtimeError, onDismiss, onFix, refres
 
   // Sync previewUrl state when projectId changes
   useEffect(() => {
-    const storedUrl = getCleanStoredUrl(previewUrlKey);
+    const storedUrl = localStorage.getItem(previewUrlKey);
     const targetUrl = storedUrl || defaultPreviewUrl;
     setPreviewUrl(targetUrl);
     setUrlInput(targetUrl);
