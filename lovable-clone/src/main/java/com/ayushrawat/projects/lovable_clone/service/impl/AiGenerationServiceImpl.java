@@ -79,7 +79,6 @@ public class AiGenerationServiceImpl implements AIGenerationService {
         return chatClient.prompt()
                 .system(PromptUtils.CODE_GENERATION_SYSTEM_PROMPT)
                 .user(userMessage)
-                .tools(codeGenerationTool)
                 .advisors(advisorSpec -> {
                             advisorSpec.params(advisorParams);
                             advisorSpec.advisors(fileTreeContextAdvisor );

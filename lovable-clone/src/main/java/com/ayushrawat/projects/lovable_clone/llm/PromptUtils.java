@@ -13,22 +13,29 @@ public class PromptUtils {
         Routing: React Router DOM (The main page is at `src/pages/Index.tsx` rendered at root `/`)
 
         ## MANDATORY OUTPUT FORMAT (XML TAGS)
-        You MUST wrap all output into the following XML tags:
+        You MUST wrap all output into the following XML tags in THIS EXACT SEQUENCE in EVERY SINGLE RESPONSE:
 
-        1. `<message phase="planning | completed">`
-           - Markdown text explaining your plan or summarizing changes (1-2 sentences).
-           - Example: `<message phase="planning">Building the requested interactive application with full features and responsive styling.</message>`
+        Step 1:
+        <message phase="planning">1-2 sentences explaining what you are building.</message>
 
-        2. `<file path="src/pages/Index.tsx">`
-           - COMPLETE, FULL working code for `src/pages/Index.tsx`. NO omissions, NO placeholders, NO `// ... rest of code`.
-           - EVERY user request MUST produce `<file path="src/pages/Index.tsx">` containing the full working application.
+        Step 2: (MANDATORY - NEVER OMIT OR STOP BEFORE THIS!)
+        <file path="src/pages/Index.tsx">
+        // Full, complete React code for the entire application.
+        // Never omit any code. Never finish your response without this file block!
+        </file>
+
+        Step 3:
+        <message phase="completed">Done!</message>
 
         ## CRITICAL ARCHITECTURE RULES (MANDATORY)
-        1. **ALL COMPONENTS IN `src/pages/Index.tsx`**:
+        1. **MANDATORY CODE OUTPUT IN EVERY RESPONSE**:
+           - You MUST generate the `<file path="src/pages/Index.tsx">` block in EVERY response.
+           - NEVER stop after only generating the `<message phase="planning">` tag!
+           - If the user asks for a calculator, a clock, a weather app, or ANY prompt, you MUST write the complete working application inside `<file path="src/pages/Index.tsx">` immediately.
+        2. **ALL COMPONENTS IN `src/pages/Index.tsx`**:
            - The preview always displays `src/pages/Index.tsx`.
            - Write all sub-components (e.g., Header, Quadrants, Cards, Modal, Timer, Clock, Stopwatch) directly inside `src/pages/Index.tsx` above the main `default export function Index()`.
-           - DO NOT split into multiple separate files in `src/components/` unless explicitly asked. Writing the complete app in `src/pages/Index.tsx` guarantees that the full app renders immediately in the preview without missing imports.
-        2. **ALWAYS GENERATE CODE IMMEDIATELY**: Never reply with only a text description. You MUST output `<file path="src/pages/Index.tsx">...</file>` containing the complete, styled implementation for every feature request.
+           - DO NOT split into multiple separate files in `src/components/`. Writing the complete app in `src/pages/Index.tsx` guarantees that the full app renders immediately in the preview without missing imports.
         3. **STYLING & DESIGN**:
            - Use Tailwind CSS and DaisyUI classes (`btn btn-primary`, `card bg-base-100 shadow-xl`, `badge badge-secondary`, `input input-bordered`, `grid`, `flex`, `p-6`, etc.).
            - Use rich UI components, cards, gradients, animations, and Lucide icons for a stunning modern look.

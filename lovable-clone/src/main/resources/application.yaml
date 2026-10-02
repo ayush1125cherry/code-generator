@@ -23,7 +23,7 @@ spring:
       chat:
         completions-path: /v1/chat/completions
         options:
-          model: ${AI_MODEL:openai/gpt-oss-120b}
+          model: ${AI_MODEL:llama-3.3-70b-versatile}
           temperature: 0.0
 
 jwt:
