@@ -12,12 +12,15 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class DeploymentServiceImpl implements DeploymentServices {
 
-    @Value("${client.url:http://localhost:3000}")
-    private String clientUrl;
+    @Value("${server.external-url:${CLIENT_URL:${RENDER_EXTERNAL_URL:http://localhost:8080}}}")
+    private String serverExternalUrl;
 
     @Override
     public DeployResponse deploy(Long projectId) {
-        String previewUrl = clientUrl + "/preview/" + projectId;
+        String baseUrl = (serverExternalUrl != null && !serverExternalUrl.isBlank())
+                ? serverExternalUrl.replaceAll("/+$", "")
+                : "http://localhost:8080";
+        String previewUrl = baseUrl + "/preview/" + projectId;
         log.info("Generating preview URL for project {}: {}", projectId, previewUrl);
         return new DeployResponse(previewUrl);
     }

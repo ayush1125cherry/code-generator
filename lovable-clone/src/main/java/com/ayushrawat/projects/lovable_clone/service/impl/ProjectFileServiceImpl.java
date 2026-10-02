@@ -87,16 +87,16 @@ public class ProjectFileServiceImpl implements ProjectFileService {
 
         String cleanPath = path.startsWith("/") ? path.substring(1) : path;
         String objectKey = projectId + "/" + cleanPath;
-        //
+        String bucket = (projectBucket != null && !projectBucket.isBlank()) ? projectBucket : BUCKET_NAME;
 
         try {
             byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
             InputStream inputStream = new ByteArrayInputStream(contentBytes);
             // saving the file content
-            log.info("Uploading to bucket {}", projectBucket);
+            log.info("Uploading to bucket {} for objectKey {}", bucket, objectKey);
             minioClient.putObject(
                     PutObjectArgs.builder()
-                            .bucket(projectBucket)
+                            .bucket(bucket)
                             .object(objectKey)
                             .stream(inputStream, contentBytes.length, -1)
                             .contentType(determineContentType(path))

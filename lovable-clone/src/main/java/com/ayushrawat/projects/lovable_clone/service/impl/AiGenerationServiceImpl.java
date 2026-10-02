@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -105,10 +106,14 @@ public class AiGenerationServiceImpl implements AIGenerationService {
                 })
                 .doOnComplete(()->{
                     Schedulers.boundedElastic().schedule(()->{
-                        long finishedAt = endTime.get() > 0 ? endTime.get() : System.currentTimeMillis();
-                        long duration = Math.max(1, (finishedAt - startTime.get()) / 1000);
+                        try {
+                            long finishedAt = endTime.get() > 0 ? endTime.get() : System.currentTimeMillis();
+                            long duration = Math.max(1, (finishedAt - startTime.get()) / 1000);
 
-                        finalizeChats(userMessage,chatSession,fullResponseBuffer.toString(),duration,usageRef.get(),userId);
+                            finalizeChats(userMessage, chatSession, fullResponseBuffer.toString(), duration, usageRef.get(), userId, projectId);
+                        } catch (Exception e) {
+                            log.error("Fatal error in finalizeChats for projectId: {}", projectId, e);
+                        }
                     });
 
                 })
@@ -123,16 +128,47 @@ public class AiGenerationServiceImpl implements AIGenerationService {
                 .filter(sr -> sr.text() != null && !sr.text().isEmpty());
     }
 
-    private void finalizeChats(String userMessage, ChatSession chatSession, String fullText, Long duration,Usage usage,Long userId) {
-        Long projectId = chatSession.getProject().getId();
-
+    private void finalizeChats(String userMessage, ChatSession chatSession, String fullText, Long duration, Usage usage, Long userId, Long projectId) {
         int promptTokens = usage != null ? usage.getPromptTokens() : 0;
         int completionTokens = usage != null ? usage.getCompletionTokens() : 0;
 
-        if(usage != null) {
-            int totalTokens = usage.getTotalTokens();
-            usageService.recordTokenUsage(chatSession.getUser().getId(), totalTokens);
+        if (usage != null) {
+            try {
+                int totalTokens = usage.getTotalTokens();
+                usageService.recordTokenUsage(userId, totalTokens);
+            } catch (Exception ex) {
+                log.warn("Failed to record token usage for user {}: {}", userId, ex.getMessage());
+            }
         }
+
+        // 1. First, parse and save generated files to MinIO so the user's project is always updated
+        List<ChatEvent> chatEventList;
+        try {
+            ChatMessage tempMessage = ChatMessage.builder()
+                    .role(MessageRole.ASSISTANT)
+                    .content(fullText)
+                    .chatSession(chatSession)
+                    .tokensUsed(completionTokens)
+                    .build();
+            chatEventList = llmResponseParser.parseChatEvents(fullText, tempMessage);
+        } catch (Exception ex) {
+            log.error("Failed to parse chat events for projectId {}: {}", projectId, ex.getMessage(), ex);
+            chatEventList = new ArrayList<>();
+        }
+
+        long fileEditCount = chatEventList.stream()
+                .filter(e -> e.getType() == ChatEventType.FILE_EDIT && e.getFilePath() != null && !e.getFilePath().isBlank() && e.getContent() != null)
+                .peek(e -> {
+                    try {
+                        log.info("Saving generated file to project {}: path={} (contentLength={})", projectId, e.getFilePath(), e.getContent().length());
+                        projectFileService.saveFile(projectId, e.getFilePath(), e.getContent());
+                    } catch (Exception ex) {
+                        log.error("Failed to save generated file: {} for projectId: {}", e.getFilePath(), projectId, ex);
+                    }
+                })
+                .count();
+
+        log.info("Saved {} file edits for projectId {}", fileEditCount, projectId);
 
         // Save the User message
         chatMessageRepository.save(
@@ -143,8 +179,6 @@ public class AiGenerationServiceImpl implements AIGenerationService {
                         .tokensUsed(promptTokens)
                         .build());
 
-
-
         ChatMessage assistantChatMessage = ChatMessage.builder()
                 .role(MessageRole.ASSISTANT)
                 .content(fullText)
@@ -154,19 +188,21 @@ public class AiGenerationServiceImpl implements AIGenerationService {
 
         assistantChatMessage = chatMessageRepository.save(assistantChatMessage);
 
-        List<ChatEvent> chatEventList = llmResponseParser.parseChatEvents(fullText, assistantChatMessage);
+        for (ChatEvent event : chatEventList) {
+            event.setChatMessage(assistantChatMessage);
+        }
         chatEventList.addFirst(ChatEvent.builder()
                 .type(ChatEventType.THOUGHT)
                 .chatMessage(assistantChatMessage)
-                .content("Thought for "+duration+"s")
+                .content("Thought for " + duration + "s")
                 .sequenceOrder(0)
                 .build());
 
-        chatEventList.stream()
-                .filter(e -> e.getType() == ChatEventType.FILE_EDIT && e.getFilePath() != null && !e.getFilePath().isBlank() && e.getContent() != null)
-                .forEach(e -> projectFileService.saveFile(projectId, e.getFilePath(), e.getContent()));
-
-        chatEventRepository.saveAll(chatEventList);
+        try {
+            chatEventRepository.saveAll(chatEventList);
+        } catch (Exception ex) {
+            log.warn("Failed to persist chat events for projectId {}: {}", projectId, ex.getMessage());
+        }
     }
 
         private ChatSession createChatSessionIfNotExists(Long projectId, Long userId){

@@ -32,13 +32,28 @@ public class LlmResponseParser {
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL
     );
 
-    // Helper to extract specific attributes (path="..." or args="...") from Group 3
+    // Helper to extract specific attributes (path="..." or args="...") supporting single or double quotes
     private static final Pattern ATTRIBUTE_PATTERN = Pattern.compile(
-            "(path|args)=\"([^\"]+)\""
+            "(path|args)=[\"']([^\"']+)[\"']"
     );
+
+    private static final Pattern UNCLOSED_FILE_PATTERN = Pattern.compile(
+            "<file[^>]*path=[\"']([^\"']+)[\"'][^>]*>([\\s\\S]+)$",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern MARKDOWN_CODE_PATTERN = Pattern.compile(
+            "```(?:tsx|jsx|typescript|javascript|html)?\\s*([\\s\\S]*?)```",
+            Pattern.CASE_INSENSITIVE
+    );
+
     public List<ChatEvent> parseChatEvents(String fullResponse, ChatMessage parentMessage) {
         List<ChatEvent> events = new ArrayList<>();
         int orderCounter = 1;
+
+        if (fullResponse == null || fullResponse.isBlank()) {
+            return events;
+        }
 
         Matcher matcher = GENERIC_TAG_PATTERN.matcher(fullResponse);
 
@@ -75,6 +90,47 @@ public class LlmResponseParser {
             events.add(builder.build());
         }
 
+        boolean hasFileEdit = events.stream().anyMatch(e -> e.getType() == ChatEventType.FILE_EDIT && e.getFilePath() != null && !e.getFilePath().isBlank());
+
+        // Fallback 1: Check for unclosed <file ...> tag if generation truncated
+        if (!hasFileEdit) {
+            Matcher unclosedMatcher = UNCLOSED_FILE_PATTERN.matcher(fullResponse);
+            if (unclosedMatcher.find()) {
+                String path = unclosedMatcher.group(1);
+                String content = cleanFileContent(unclosedMatcher.group(2));
+                if (path != null && !path.isBlank() && !content.isBlank()) {
+                    log.info("Recovered unclosed <file> tag for path: {}", path);
+                    events.add(ChatEvent.builder()
+                            .chatMessage(parentMessage)
+                            .type(ChatEventType.FILE_EDIT)
+                            .filePath(path)
+                            .content(content)
+                            .sequenceOrder(orderCounter++)
+                            .build());
+                    hasFileEdit = true;
+                }
+            }
+        }
+
+        // Fallback 2: Check for markdown code blocks containing React component code
+        if (!hasFileEdit) {
+            Matcher codeMatcher = MARKDOWN_CODE_PATTERN.matcher(fullResponse);
+            while (codeMatcher.find()) {
+                String code = codeMatcher.group(1).trim();
+                if (code.contains("export default") || code.contains("React") || code.contains("return (") || code.contains("return <")) {
+                    log.info("Recovered markdown code block as src/pages/Index.tsx");
+                    events.add(ChatEvent.builder()
+                            .chatMessage(parentMessage)
+                            .type(ChatEventType.FILE_EDIT)
+                            .filePath("src/pages/Index.tsx")
+                            .content(code)
+                            .sequenceOrder(orderCounter++)
+                            .build());
+                    break;
+                }
+            }
+        }
+
         return events;
     }
 
@@ -90,12 +146,8 @@ public class LlmResponseParser {
         }
         clean = clean.replaceAll("<!\\[CDATA\\[|\\]\\]>", "").trim();
         // Remove markdown code fences
-        if (clean.startsWith("```")) {
-            clean = clean.replaceFirst("^```[a-zA-Z0-9_-]*\\s*\\n", "").trim();
-        }
-        if (clean.endsWith("```")) {
-            clean = clean.replaceFirst("\\n```\\s*$", "").trim();
-        }
+        clean = clean.replaceAll("^```[a-zA-Z0-9_-]*\\s*", "").trim();
+        clean = clean.replaceAll("\\s*```$", "").trim();
         return clean;
     }
 
