@@ -79,6 +79,20 @@ public class ProjectFileServiceImpl implements ProjectFileService {
                         new org.springframework.core.io.ClassPathResource("starter-template/" + cleanPath);
                 if (resource.exists()) {
                     String fallbackContent = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+                    // Try best-effort backfill to MinIO now if MinIO is back online
+                    try {
+                        byte[] bytes = fallbackContent.getBytes(StandardCharsets.UTF_8);
+                        minioClient.putObject(
+                                PutObjectArgs.builder()
+                                        .bucket(bucket)
+                                        .object(objectName)
+                                        .stream(new ByteArrayInputStream(bytes), bytes.length, -1)
+                                        .contentType(determineContentType(cleanPath))
+                                        .build()
+                        );
+                    } catch (Exception ignored) {}
+
                     return new FileContentResponse(path, fallbackContent);
                 }
             } catch (Exception ignored) {
@@ -101,41 +115,49 @@ public class ProjectFileServiceImpl implements ProjectFileService {
         String objectKey = projectId + "/" + cleanPath;
         String bucket = (projectBucket != null && !projectBucket.isBlank()) ? projectBucket : BUCKET_NAME;
 
-        try {
-            if (!minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build())) {
-                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
-                log.info("Auto-created missing bucket: {}", bucket);
+        int maxRetries = 3;
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                if (!minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build())) {
+                    minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
+                    log.info("Auto-created missing bucket: {}", bucket);
+                }
+
+                byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
+                InputStream inputStream = new ByteArrayInputStream(contentBytes);
+                log.info("Uploading to bucket {} for objectKey {}", bucket, objectKey);
+                minioClient.putObject(
+                        PutObjectArgs.builder()
+                                .bucket(bucket)
+                                .object(objectKey)
+                                .stream(inputStream, contentBytes.length, -1)
+                                .contentType(determineContentType(path))
+                                .build());
+                break; // success
+            } catch (Exception e) {
+                if (attempt == maxRetries) {
+                    log.error("Failed to save file to MinIO {}/{} after {} attempts", projectId, cleanPath, maxRetries, e);
+                    throw new RuntimeException("File save failed", e);
+                }
+                log.warn("MinIO save attempt {}/{} failed for {}/{}: {}. Retrying in 2s...", attempt, maxRetries, projectId, cleanPath, e.getMessage());
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException ignored) {}
             }
-
-            byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
-            InputStream inputStream = new ByteArrayInputStream(contentBytes);
-            // saving the file content
-            log.info("Uploading to bucket {} for objectKey {}", bucket, objectKey);
-            minioClient.putObject(
-                    PutObjectArgs.builder()
-                            .bucket(bucket)
-                            .object(objectKey)
-                            .stream(inputStream, contentBytes.length, -1)
-                            .contentType(determineContentType(path))
-                            .build());
-
-            // Saving the metaData
-            ProjectFile file = projectFileRepository.findByProjectIdAndPath(projectId, cleanPath)
-                    .orElseGet(() -> ProjectFile.builder()
-                            .project(project)
-                            .path(cleanPath)
-                            .minioObjectKey(objectKey) // Use the key we generated
-                            .createdAt(Instant.now())
-                            .build());
-
-            file.setUpdatedAt(Instant.now());
-            projectFileRepository.save(file);
-            log.info("Saved file: {}", objectKey);
-        } catch (Exception e) {
-            log.error("Failed to save file {}/{}", projectId, cleanPath, e);
-            throw new RuntimeException("File save failed", e);
         }
 
+        // Saving the metaData
+        ProjectFile file = projectFileRepository.findByProjectIdAndPath(projectId, cleanPath)
+                .orElseGet(() -> ProjectFile.builder()
+                        .project(project)
+                        .path(cleanPath)
+                        .minioObjectKey(objectKey)
+                        .createdAt(Instant.now())
+                        .build());
+
+        file.setUpdatedAt(Instant.now());
+        projectFileRepository.save(file);
+        log.info("Saved file: {}", objectKey);
     }
 
     private String determineContentType(String path) {

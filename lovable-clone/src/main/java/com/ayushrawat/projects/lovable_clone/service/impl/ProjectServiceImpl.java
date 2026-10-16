@@ -52,7 +52,6 @@ public class ProjectServiceImpl implements ProjectService {
 //                ()-> new ResourceNotFoundException("User",userId.toString()));
 
         User owner = userRepository.getReferenceById(userId);
-
         Project project = Project.builder()
                 .name(request.name())
                 .isPublic(false)
@@ -71,11 +70,7 @@ public class ProjectServiceImpl implements ProjectService {
                 .build();
 
         projectMemberRepository.save(projectMember);
-
         projectTemplateService.initializerProjectFromTemplate(project.getId());
-
-
-
         return projectMapper.toProjectResponse(project);
     }
 
